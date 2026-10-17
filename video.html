@@ -117,6 +117,31 @@
       white-space: nowrap;
     }
     #soundHint[hidden] { display: none; }
+    #soundHint { bottom: 56px; }
+    /* 커서를 올리거나 터치하면 잠깐 나타나는 재생바 */
+    .bar {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 22px 10px 10px;
+      background: linear-gradient(transparent, rgba(0, 0, 0, .75));
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s;
+    }
+    .stage.show .bar { opacity: 1; pointer-events: auto; }
+    .bar button {
+      border: 0;
+      background: none;
+      color: #fff;
+      font-size: 18px;
+      line-height: 1;
+      padding: 4px;
+    }
+    #seek { flex: 1; min-width: 0; accent-color: #fff; cursor: pointer; }
     #videoTitle, #videoMeta { display: none; }
     .controls {
       display: flex;
@@ -166,6 +191,11 @@
         ></iframe>
         <div id="tapLayer"></div>
         <div id="soundHint" hidden>🔇 화면을 탭하면 소리 켜짐</div>
+        <div class="bar">
+          <button id="ppBtn" type="button" aria-label="재생/정지">❚❚</button>
+          <input id="seek" type="range" min="0" max="1000" value="0" aria-label="재생 위치">
+          <button id="muteBtn" type="button" aria-label="소리">🔊</button>
+        </div>
       </div>
 
       <div id="videoTitle"></div>
@@ -405,11 +435,14 @@
       const q = new URLSearchParams({
         autoplay: 1, mute: curMuted ? 1 : 0, controls: 0, modestbranding: 1,
         rel: 0, playsinline: 1, iv_load_policy: 3, fs: 0, disablekb: 1,
-        loop: 1, playlist: v.id, enablejsapi: 1, origin: location.origin
+        enablejsapi: 1, origin: location.origin
       });
       $("videoFrame").src = v.url + "?" + q.toString();
       paused = false;
       $("soundHint").hidden = !curMuted;
+      $("seek").value = 0;
+      $("ppBtn").textContent = "❚❚";
+      $("muteBtn").textContent = curMuted ? "🔇" : "🔊";
       $("videoTitle").textContent = v.title;
       $("videoMeta").textContent = v.category;
       $("status").textContent = `${currentIndex + 1} / ${n}`;
@@ -434,6 +467,57 @@
       if (w) w.postMessage(JSON.stringify({ event: "command", func, args }), "*");
     }
 
+    // 유튜브 플레이어 상태 받기 (재생 위치, 길이, 재생/정지, 끝남)
+    let dur = 0, seeking = false;
+    $("videoFrame").addEventListener("load", () => {
+      const w = $("videoFrame").contentWindow;
+      if (w) w.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*");
+    });
+    window.addEventListener("message", e => {
+      if (e.source !== $("videoFrame").contentWindow) return;
+      let d;
+      try { d = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch { return; }
+      if (!d || d.event !== "infoDelivery" || !d.info) return;
+      const info = d.info;
+      if (typeof info.duration === "number" && info.duration > 0) dur = info.duration;
+      if (typeof info.currentTime === "number" && dur && !seeking) {
+        $("seek").value = Math.min(1000, (info.currentTime / dur) * 1000);
+      }
+      if (typeof info.playerState === "number") {
+        paused = info.playerState === 2;
+        $("ppBtn").textContent = paused ? "▶" : "❚❚";
+        if (info.playerState === 0) goNext();   // 영상 끝나면 자동으로 다음 영상 (티비처럼)
+      }
+    });
+
+    const stage = document.querySelector(".stage");
+    let hideTimer;
+    function showBar() {
+      stage.classList.add("show");
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => stage.classList.remove("show"), 2500);
+    }
+    ["pointermove", "pointerdown"].forEach(ev => stage.addEventListener(ev, showBar));
+
+    $("ppBtn").addEventListener("click", () => {
+      paused = !paused;
+      ytCmd(paused ? "pauseVideo" : "playVideo");
+      $("ppBtn").textContent = paused ? "▶" : "❚❚";
+    });
+    $("muteBtn").addEventListener("click", () => {
+      curMuted = !curMuted;
+      ytCmd(curMuted ? "mute" : "unMute");
+      $("muteBtn").textContent = curMuted ? "🔇" : "🔊";
+      $("soundHint").hidden = !curMuted;
+    });
+    $("seek").addEventListener("pointerdown", () => { seeking = true; });
+    $("seek").addEventListener("input", () => {
+      if (dur) ytCmd("seekTo", [($("seek").value / 1000) * dur, true]);
+    });
+    ["pointerup", "pointercancel", "change"].forEach(ev =>
+      $("seek").addEventListener(ev, () => { seeking = false; })
+    );
+
     function goNext() { playIndex(currentIndex + 1); }
     function goPrev() { playIndex(currentIndex - 1); }
 
@@ -443,6 +527,7 @@
         ytCmd("setVolume", [100]);
         curMuted = false;
         $("soundHint").hidden = true;
+        $("muteBtn").textContent = "🔊";
       } else {                        // 이후 탭: 일시정지/재생
         paused = !paused;
         ytCmd(paused ? "pauseVideo" : "playVideo");
