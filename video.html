@@ -298,4 +298,81 @@
             .filter(v => v.url)
         ];
 
-        videos = [...new Map(v
+        videos = [...new Map(videos.map(v => [v.id, v])).values()];
+
+        renderChannels();
+        applyFilter();
+      } catch (e) {
+        console.error("load error:", e);
+        loaded = false;
+        $("status").textContent = "영상 불러오기 오류: " + e.message;
+      }
+    }
+
+    // 카테고리 버튼
+    function renderChannels() {
+      const cats = ["전체", ...new Set(videos.map(v => v.category))];
+      const nav = $("channels");
+      nav.innerHTML = "";
+
+      cats.forEach(cat => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip" + (cat === currentCategory ? " active" : "");
+        b.textContent = cat;
+        b.addEventListener("click", () => {
+          currentCategory = cat;
+          renderChannels();
+          applyFilter();
+        });
+        nav.appendChild(b);
+      });
+    }
+
+    // 카테고리 필터 적용
+    function applyFilter() {
+      filteredVideos = currentCategory === "전체"
+        ? videos.slice()
+        : videos.filter(v => v.category === currentCategory);
+
+      if (!filteredVideos.length) {
+        currentIndex = -1;
+        $("videoFrame").removeAttribute("src");
+        $("videoTitle").textContent = "";
+        $("videoMeta").textContent = "";
+        $("status").textContent = "영상이 아직 없어. (data/videos.json 이 비어 있음)";
+        return;
+      }
+
+      playRandom();
+    }
+
+    // 재생
+    function playIndex(i) {
+      const n = filteredVideos.length;
+      if (!n) return;
+
+      currentIndex = ((i % n) + n) % n;
+      const v = filteredVideos[currentIndex];
+
+      $("videoFrame").src = v.url + "?autoplay=1&rel=0&playsinline=1";
+      $("videoTitle").textContent = v.title;
+      $("videoMeta").textContent = v.category;
+      $("status").textContent = `${currentIndex + 1} / ${n}`;
+    }
+
+    function playRandom() {
+      const n = filteredVideos.length;
+      if (!n) return;
+
+      let i = Math.floor(Math.random() * n);
+      if (n > 1 && i === currentIndex) i = (i + 1) % n;
+      playIndex(i);
+    }
+
+    $("randomBtn").addEventListener("click", playRandom);
+    $("prevBtn").addEventListener("click", () => playIndex(currentIndex - 1));
+    $("nextBtn").addEventListener("click", () => playIndex(currentIndex + 1));
+  </script>
+</body>
+</html>
