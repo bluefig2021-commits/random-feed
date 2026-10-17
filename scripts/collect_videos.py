@@ -28,7 +28,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data", "videos.json")
 
 KEY = os.environ.get("YOUTUBE_API_KEY", "")
-SEARCHES = int(os.environ.get("VIDEO_SEARCHES", "1"))      # 카테고리당 검색 횟수 (1번 = 100 쿼터)
+SEARCHES = int(os.environ.get("VIDEO_SEARCHES", "2"))      # 카테고리당 검색 횟수 (1번 = 100 쿼터)
 MAX_SEC = int(os.environ.get("SHORT_MAX_SEC", "61"))        # 이 길이(초) 이하만 (쇼츠)
 MAX_ITEMS = int(os.environ.get("MAX_VIDEOS", "3000"))
 MAX_AGE_DAYS = int(os.environ.get("MAX_AGE_DAYS", "30"))    # API 약관상 저장한 정보는 오래 안 두는 게 안전해서 30일 지나면 지움
@@ -37,14 +37,14 @@ UA = "RandomKnowledgeTV/1.0 (personal hobby project)"
 
 # 채널(카테고리) -> 검색어. 여기를 고치면 채널이 바뀜. 영상은 '#shorts' 를 붙여서 쇼츠 위주로 찾음.
 VIDEO_QUERIES = {
-    "웃김": ["웃긴 영상 #shorts", "개그 상황극 #shorts", "웃긴 실수 #shorts"],
-    "동물": ["귀여운 동물 #shorts", "고양이 #shorts", "강아지 #shorts", "신기한 동물 #shorts"],
-    "먹방": ["먹방 #shorts", "길거리 음식 #shorts", "요리 레시피 #shorts"],
-    "만족": ["만족스러운 영상 #shorts", "oddly satisfying #shorts", "ASMR #shorts"],
-    "잡학": ["신기한 사실 #shorts", "알고 보면 #shorts", "잡학 #shorts"],
-    "미스터리": ["미스터리 #shorts", "미제사건 #shorts", "괴담 #shorts"],
-    "여행": ["여행 브이로그 #shorts", "풍경 #shorts", "세계 여행 #shorts"],
-    "음악": ["노래 커버 #shorts", "버스킹 #shorts", "연주 #shorts"],
+    "웃김": ["funny fails #shorts", "funny moments no talking #shorts", "unexpected funny #shorts", "comedy sketch #shorts"],
+    "동물": ["cute animals #shorts", "funny cats #shorts", "dogs #shorts", "amazing animals #shorts"],
+    "먹방": ["street food #shorts", "cooking process #shorts", "satisfying food #shorts", "food around the world #shorts"],
+    "만족": ["oddly satisfying #shorts", "satisfying #shorts", "asmr #shorts", "satisfying cutting #shorts"],
+    "잡학": ["science experiment #shorts", "cool engineering #shorts", "amazing inventions #shorts", "nature phenomenon #shorts"],
+    "미스터리": ["mystery #shorts", "unexplained #shorts", "unsolved mystery #shorts", "strange discoveries #shorts"],
+    "여행": ["travel #shorts", "drone landscape #shorts", "scenic nature #shorts", "world travel #shorts"],
+    "음악": ["street performance #shorts", "busking #shorts", "instrument #shorts", "live music #shorts"],
 }
 
 
@@ -71,7 +71,7 @@ def iso_to_sec(d):
 def search_ids(query):
     res = api("search", {
         "part": "snippet", "type": "video", "videoDuration": "short", "videoEmbeddable": "true",
-        "maxResults": 25, "q": query, "regionCode": "KR", "relevanceLanguage": "ko",
+        "maxResults": 25, "q": query, "relevanceLanguage": "en",
         "safeSearch": "moderate", "order": random.choice(["relevance", "date", "viewCount"]),
     })
     return [x["id"]["videoId"] for x in res.get("items", []) if x.get("id", {}).get("videoId")]
@@ -127,6 +127,11 @@ def main():
                 sec = iso_to_sec(it.get("contentDetails", {}).get("duration"))
                 if not st.get("embeddable") or st.get("privacyStatus") != "public" or sec > MAX_SEC:
                     continue
+                if it.get("contentDetails", {}).get("caption") == "true":
+                    continue  # 자막 있는 영상 제외
+                lang = (sn.get("defaultAudioLanguage") or sn.get("defaultLanguage") or "").lower()
+                if lang.startswith("ko"):
+                    continue  # 한국어 영상 제외
                 title, ch = sn.get("title", ""), sn.get("channelTitle", "")
                 if is_blocked(title, ch, sn.get("description", "")[:200]):
                     continue
