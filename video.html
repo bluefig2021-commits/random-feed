@@ -143,6 +143,13 @@
     }
     #seek { flex: 1; min-width: 0; accent-color: #fff; cursor: pointer; }
     #videoTitle, #videoMeta { display: none; }
+    .linkbtn {
+      border: 0;
+      background: none;
+      color: #999;
+      font-size: 12px;
+      text-decoration: underline;
+    }
     .controls {
       display: flex;
       align-items: center;
@@ -194,6 +201,7 @@
         <div class="bar">
           <button id="ppBtn" type="button" aria-label="재생/정지">❚❚</button>
           <input id="seek" type="range" min="0" max="1000" value="0" aria-label="재생 위치">
+          <button id="blockBtn" type="button" aria-label="관심없음" title="관심없음 (이 채널 안 보기)">🚫</button>
           <button id="muteBtn" type="button" aria-label="소리">🔊</button>
         </div>
       </div>
@@ -208,6 +216,7 @@
       </div>
 
       <p id="status" aria-live="polite"></p>
+      <p style="text-align:center;margin:0"><button id="resetBlock" class="linkbtn" type="button" hidden></button></p>
     </section>
 
   </main>
@@ -352,6 +361,7 @@
               id: v.id,
               title: v.t || "제목 없음",
               category: v.c || "기타",
+              channel: v.ch || "",
               url: `https://www.youtube.com/embed/${v.id}`
             })),
 
@@ -386,7 +396,7 @@
 
     // 카테고리 버튼
     function renderChannels() {
-      const cats = ["전체", ...new Set(videos.map(v => v.category))];
+      const cats = ["전체", ...new Set(videos.filter(v => !isBlocked(v)).map(v => v.category))];
       const nav = $("channels");
       nav.innerHTML = "";
 
@@ -406,9 +416,7 @@
 
     // 카테고리 필터 적용
     function applyFilter() {
-      filteredVideos = currentCategory === "전체"
-        ? videos.slice()
-        : videos.filter(v => v.category === currentCategory);
+      filteredVideos = visibleList();
 
       if (!filteredVideos.length) {
         currentIndex = -1;
@@ -567,6 +575,64 @@
       if (e.key === "ArrowDown") { e.preventDefault(); goNext(); }
       if (e.key === "ArrowUp") { e.preventDefault(); goPrev(); }
     });
+
+    // ---- 관심없음(차단) : 이 브라우저에 저장됨 ----
+    const BL_KEY = "rf_blocked_v1";
+    let blocked = (() => {
+      try {
+        const b = JSON.parse(localStorage.getItem(BL_KEY));
+        return { ch: Array.isArray(b?.ch) ? b.ch : [], id: Array.isArray(b?.id) ? b.id : [] };
+      } catch { return { ch: [], id: [] }; }
+    })();
+
+    function saveBlocked() {
+      try { localStorage.setItem(BL_KEY, JSON.stringify(blocked)); } catch {}
+    }
+    function isBlocked(v) {
+      return blocked.id.includes(v.id) || (v.channel && blocked.ch.includes(v.channel));
+    }
+    function visibleList() {
+      const ok = videos.filter(v => !isBlocked(v));
+      return currentCategory === "전체" ? ok : ok.filter(v => v.category === currentCategory);
+    }
+    function updateBlockInfo() {
+      const n = blocked.ch.length + blocked.id.length;
+      $("resetBlock").hidden = !n;
+      $("resetBlock").textContent = `🚫 차단 ${n}개 · 초기화`;
+    }
+
+    function blockCurrent() {
+      const v = filteredVideos[currentIndex];
+      if (!v) return;
+      if (v.channel) {
+        if (!blocked.ch.includes(v.channel)) blocked.ch.push(v.channel);
+      } else if (!blocked.id.includes(v.id)) {
+        blocked.id.push(v.id);
+      }
+      saveBlocked();
+
+      const label = v.channel ? `${v.channel} 채널` : "이 영상";
+      const stillHas = videos.some(x => !isBlocked(x) && x.category === currentCategory);
+      if (currentCategory !== "전체" && !stillHas) currentCategory = "전체";
+      renderChannels();
+
+      const idx = currentIndex;
+      filteredVideos = visibleList();
+      updateBlockInfo();
+      if (!filteredVideos.length) { applyFilter(); return; }
+      playIndex(idx);                 // 빠진 자리에 다음 영상이 와서 바로 넘어간 효과
+      $("status").textContent = `🚫 ${label} 안 볼게요`;
+    }
+
+    $("blockBtn").addEventListener("click", blockCurrent);
+    $("resetBlock").addEventListener("click", () => {
+      blocked = { ch: [], id: [] };
+      saveBlocked();
+      updateBlockInfo();
+      renderChannels();
+      applyFilter();
+    });
+    updateBlockInfo();
 
     $("randomBtn").addEventListener("click", playRandom);
     $("prevBtn").addEventListener("click", goPrev);
