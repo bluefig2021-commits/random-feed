@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>tv</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif; padding: clamp(12px, 4vw, 48px) 16px; color: #333; margin: 0; background: #fff; word-break: keep-all; }
+  .frame { max-width: 520px; margin: 0 auto; box-sizing: border-box; background: #fff; border: 1px solid #e3e3e3; border-radius: 24px; padding: clamp(18px, 4vw, 32px); }
+  #app[hidden], #loginView[hidden] { display: none; }
+  #loginView { display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 40vh; gap: 20px; }
+  .title-logo { font-size: 12px; letter-spacing: 4px; color: #aaa; font-weight: bold; }
+  #loginError { color: #ff4d4f; font-size: 12px; text-align: center; min-height: 16px; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .site-title { font-size: 24px; font-weight: 800; letter-spacing: -.5px; color: #0f172a; }
+  .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { padding: 5px 13px; border: 1px solid #ccc; border-radius: 15px; background: #fff; cursor: pointer; font-size: 12px; letter-spacing: 1px; color: #888; font-family: inherit; }
+  .btn[aria-pressed="true"] { background: #0f172a; border-color: #0f172a; color: #fff; }
+  .btn-black { background: #000; color: #fff; border: none; padding: 10px 26px; border-radius: 20px; font-weight: bold; font-size: 14px; letter-spacing: 1px; cursor: pointer; font-family: inherit; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .chip { border: 1px solid #ddd; background: #fff; color: #888; border-radius: 20px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .chip.on { background: #0f172a; border-color: #0f172a; color: #fff; }
+  .stage { position: relative; width: min(100%, 360px); aspect-ratio: 9 / 16; margin: 0 auto; background: #000; border-radius: 18px; overflow: hidden; }
+  #yt, #embed { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  #yt[hidden], #embed[hidden] { display: none; }
+  .touch { position: absolute; inset: 0; z-index: 2; touch-action: none; }
+  .embedmode .touch { pointer-events: none; }
+  .zone { position: absolute; top: 0; bottom: 0; width: 16%; z-index: 3; touch-action: none; pointer-events: none; }
+  .zl { left: 0; } .zr { right: 0; }
+  .embedmode .zone { pointer-events: auto; }
+  .start { position: absolute; inset: 0; z-index: 5; background: rgba(0,0,0,.82); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 20px; }
+  .start[hidden] { display: none; }
+  .start p { margin: 0; font-size: 13px; color: #ccc; line-height: 1.6; }
+  .start .btn-black { background: #fff; color: #000; }
+  .hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 4; background: rgba(0,0,0,.7); color: #fff; font-size: 12px; padding: 6px 14px; border-radius: 999px; pointer-events: none; }
+  .hint[hidden] { display: none; }
+  .info { margin: 12px auto 0; width: min(100%, 360px); }
+  #vTitle { font-size: 15px; font-weight: 700; line-height: 1.4; color: #0f172a; }
+  #vMeta { font-size: 12px; color: #999; margin-top: 4px; line-height: 1.6; }
+  #vMeta a { color: #0f172a; }
+  .ctl { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px auto 0; width: min(100%, 360px); }
+  .round { width: 46px; height: 46px; border-radius: 50%; border: 1px solid #ddd; background: #fff; color: #0f172a; font-size: 18px; cursor: pointer; flex: none; }
+  .round[disabled] { opacity: .25; cursor: default; }
+  .rand { flex: 1; max-width: 200px; height: 42px; }
+  .status { min-height: 18px; margin: 10px 0 0; font-size: 12px; color: #888; text-align: center; }
+  button:focus-visible, a:focus-visible { outline: 2px solid #0f172a; outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div id="loginView" hidden>
+    <div class="title-logo">PRIVATE TV</div>
+    <button id="googleLoginBtn" class="btn-black" type="button">GOOGLE LOGIN</button>
+    <div id="loginError"></div>
+  </div>
+
+  <div id="app" hidden>
+    <div class="head">
+      <div class="site-title">tv</div>
+      <div class="acts">
+        <button class="btn" id="soundBtn" type="button" aria-pressed="true">SOUND</button>
+        <button class="btn" id="autoBtn" type="button" aria-pressed="true">AUTO</button>
+        <button class="btn" id="logoutBtn" type="button">LOGOUT</button>
+      </div>
+    </div>
+
+    <div class="chips" id="chips" role="group" aria-label="channel"></div>
+
+    <div class="stage" id="stage">
+      <div id="yt"></div>
+      <iframe id="embed" hidden allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <div class="touch" id="touch"></div>
+      <div class="zone zl" id="zl"></div>
+      <div class="zone zr" id="zr"></div>
+      <div class="start" id="start">
+        <button class="btn-black" id="startBtn" type="button">START</button>
+        <p>한 번 누르면 재생이 시작되고<br>그다음부터는 자동으로 이어져<br>좌우로 밀면 다음 영상</p>
+      </div>
+      <div class="hint" id="hint" hidden>탭해서 재생</div>
+    </div>
+
+    <div class="info">
+      <div id="vTitle"></div>
+      <div id="vMeta"></div>
+    </div>
+
+    <div class="ctl">
+      <button class="round" id="prev" type="button" aria-label="이전 영상">←</button>
+      <button class="btn-black rand" id="rand" type="button">RANDOM</button>
+      <button class="round" id="next" type="button" aria-label="다음 영상">→</button>
+    </div>
+    <p class="status" id="status" aria-live="polite"></p>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+const ADMIN_EMAIL = "raizn199x@gmail.com";
+const firebaseConfig = {
+  apiKey: "AIzaSyDWYC-g2LwKA10RUXYB2_5vXNULAcbUVFo",
+  authDomain: "memo-9d3d7.firebaseapp.com",
+  projectId: "memo-9d3d7",
+  storageBucket: "memo-9d3d7.firebasestorage.app",
+  messagingSenderId: "648840817270",
+  appId: "1:648840817270:web:74671efb217c73b341cd57",
+  measurementId: "G-GCXM0W50LG"
+};
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: "select_account" });
+setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const say = t => { $("status").textContent = t || ""; };
+const YT_ID = /^[A-Za-z0-9_-]{11}$/;
+
+let ALL = [];
+let cat = "전체";
+let history = [];
+let pos = -1;
+let seen = new Set(store.get("vseen", []));
+let bad = new Set(store.get("vbad", []));
+let auto = store.get("vauto", true);      // 영상이 끝나면 자동으로 다음 영상
+let muted = store.get("vmuted", false);
+let inited = false;                       // 로그인 후 초기화 했는지
+let begun = false;                        // START 를 눌렀는지 (브라우저 자동재생 규칙 때문에 첫 탭이 필요)
+let player = null;
+let playerReady = false;
+let hintTimer = null;
+
+/* ── 로그인 ── */
+$("googleLoginBtn").addEventListener("click", async () => {
+  try{ await signInWithPopup(auth, provider); }
+  catch(e){ $("loginError").textContent = "Login failed: " + e.message; }
+});
+$("logoutBtn").addEventListener("click", () => signOut(auth));
+onAuthStateChanged(auth, async (user) => {
+  if (!user){ $("app").hidden = true; $("loginView").hidden = false; return; }
+  if (user.email !== ADMIN_EMAIL){
+    $("loginError").textContent = "This account has no access.";
+    $("loginView").hidden = false; $("app").hidden = true;
+    await signOut(auth);
+    return;
+  }
+  $("loginError").textContent = "";
+  $("loginView").hidden = true; $("app").hidden = false;
+  if (inited) return;
+  inited = true;
+  await init();
+});
+
+/* ── 데이터: data/videos.json (수집기가 채움) + data/links.json (내가 직접 넣는 링크) ── */
+async function fetchJson(path){
+  try{
+    const r = await fetch(path, {cache:"no-cache"});
+    if (r.ok){ const d = await r.json(); if (Array.isArray(d)) return d; }
+  }catch(e){}
+  return [];
+}
+function hash(s){ let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return (h >>> 0).toString(36); }
+
+function parseLink(u){
+  try{
+    const x = new URL(u);
+    const h = x.hostname.replace(/^www\.|^m\./, "");
+    if (h === "youtu.be"){ const v = x.pathname.slice(1, 12); if (YT_ID.test(v)) return {p:"yt", v}; }
+    if (h.endsWith("youtube.com")){
+      const m = x.pathname.match(/^\/shorts\/([\w-]{11})/);
+      if (m) return {p:"yt", v:m[1]};
+      const v = (x.searchParams.get("v") || "").slice(0, 11);
+      if (YT_ID.test(v)) return {p:"yt", v};
+    }
+    if (h.endsWith("tiktok.com")){
+      const m = x.pathname.match(/\/video\/(\d+)/);
+      if (m) return {p:"tt", v:m[1]};
+    }
+    if (h.endsWith("instagram.com")){
+      const m = x.pathname.match(/^\/(reel|reels|p)\/([\w-]+)/);
+      if (m) return {p:"ig", v:m[2], t: m[1] === "p" ? "p" : "reel"};
+    }
+  }catch(e){}
+  return null;
+}
+
+function normalize(videos, links){
+  const out = [], ids = new Set();
+  videos.forEach(x => {
+    if (!x || !YT_ID.test(x.id || "")) return;
+    const id = "y" + x.id;
+    if (ids.has(id)) return;
+    ids.add(id);
+    out.push({id, p:"yt", v:x.id, c:x.c || "기타", t:x.t || "", ch:x.ch || ""});
+  });
+  links.forEach(x => {
+    if (!x || !x.url) return;
+    const p = parseLink(x.url);
+    if (!p) return;
+    const id = "l" + hash(x.url);
+    if (ids.has(id)) return;
+    ids.add(id);
+    out.push(Object.assign({id, c:x.c || "내 링크", t:x.t || "", ch:x.ch || "", url:x.url}, p));
+  });
+  return out;
+}
+
+const pool = () => ALL.filter(x => !bad.has(x.id) && (cat === "전체" || x.c === cat));
+
+function pickRandom(excludeId){
+  const p = pool();
+  if (!p.length) return null;
+  let fresh = p.filter(x => !seen.has(x.id));
+  if (!fresh.length){ p.forEach(x => seen.delete(x.id)); fresh = p.slice(); }
+  if (fresh.length > 1) fresh = fresh.filter(x => x.id !== excludeId);
+  if (cat === "전체"){
+    const groups = {};
+    fresh.forEach(x => (groups[x.c] = groups[x.c] || []).push(x));
+    const keys = Object.keys(groups);
+    const g = groups[keys[Math.floor(Math.random() * keys.length)]];
+    return g[Math.floor(Math.random() * g.length)];
+  }
+  return fresh[Math.floor(Math.random() * fresh.length)];
+}
+const byId = id => ALL.find(x => x.id === id);
+
+/* ── 유튜브 플레이어 (공식 IFrame API) ── */
+function loadYouTubeApi(){
+  return new Promise(resolve => {
+    if (window.YT && window.YT.Player){ resolve(); return; }
+    window.onYouTubeIframeAPIReady = () => resolve();
+    const s = document.createElement("script");
+    s.src = "https://www.youtube.com/iframe_api";
+    s.onerror = () => resolve();     // 막혀 있으면 유튜브만 못 틀고 링크 영상은 계속 됨
+    document.head.append(s);
+  });
+}
+function createPlayer(){
+  if (!(window.YT && window.YT.Player)) return;
+  player = new YT.Player("yt", {
+    width: "100%", height: "100%",
+    playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, playsinline: 1, rel: 0, iv_load_policy: 3, origin: location.origin },
+    events: {
+      onReady: () => { playerReady = true; applyMute(); },
+      onStateChange: onState,
+      onError: onPlayerError
+    }
+  });
+}
+function applyMute(){
+  if (!player || !playerReady) return;
+  try{ muted ? player.mute() : player.unMute(); }catch(e){}
+}
+function onState(e){
+  const S = window.YT.PlayerState;
+  if (e.data === S.PLAYING){ $("hint").hidden = true; clearTimeout(hintTimer); }
+  if (e.data === S.ENDED && auto) next();            // TV 채널처럼 끝나면 다음으로
+  else if (e.data === S.ENDED) { try{ player.playVideo(); }catch(err){} }   // AUTO 꺼짐: 같은 영상 반복
+}
+function onPlayerError(){
+  // 퍼가기 막힌 영상/삭제된 영상: 목록에서 빼고 바로 다음으로
+  const it = byId(history[pos]);
+  if (it){ bad.add(it.id); store.set("vbad", [...bad].slice(-2000)); }
+  say("재생이 안 되는 영상이라 건너뛰었어");
+  setTimeout(next, 400);
+}
+
+/* ── 재생 ── */
+function isYt(it){ return it.p === "yt"; }
+function embedSrc(it){
+  if (it.p === "tt" && /^\d+$/.test(it.v)) return `https://www.tiktok.com/embed/v2/${it.v}`;
+  if (it.p === "ig" && /^[\w-]+$/.test(it.v)) return `https://www.instagram.com/${it.t === "p" ? "p" : "reel"}/${it.v}/embed/`;
+  return "";
+}
+function watchUrl(it){
+  if (it.p === "yt") return `https://www.youtube.com/watch?v=${it.v}`;
+  return it.url && /^https:\/\//.test(it.url) ? it.url : "";
+}
+
+function playItem(it){
+  const stage = $("stage");
+  if (isYt(it)){
+    stage.classList.remove("embedmode");
+    $("embed").hidden = true; $("embed").src = "about:blank";
+    $("yt").hidden = false;
+    if (player && playerReady){
+      applyMute();
+      player.loadVideoById(it.v);               // START 를 한 번 누른 뒤라서 자동으로 재생됨
+      clearTimeout(hintTimer);
+      hintTimer = setTimeout(() => {            // 브라우저가 자동재생을 막았을 때만 안내
+        try{
+          const st = player.getPlayerState();
+          if (st !== 1 && st !== 3) $("hint").hidden = false;
+        }catch(e){}
+      }, 2200);
+    } else {
+      say("유튜브 플레이어를 불러오는 중이야. 잠깐만");
+    }
+  } else {
+    stage.classList.add("embedmode");
+    if (player && playerReady){ try{ player.pauseVideo(); }catch(e){} }
+    $("yt").hidden = true;
+    $("hint").hidden = true;
+    const src = embedSrc(it);
+    if (!src){ onPlayerError(); return; }
+    $("embed").src = src; $("embed").hidden = false;
+    say("틱톡/릴스는 자동 넘김이 안 돼. 좌우로 밀어서 넘겨줘");
+  }
+}
+
+function renderInfo(it){
+  $("vTitle").textContent = it.t || "(제목 없음)";
+  const meta = $("vMeta"); meta.innerHTML = "";
+  const label = it.p === "yt" ? "YouTube" : it.p === "tt" ? "TikTok" : "Instagram";
+  meta.append(document.createTextNode([it.c, label, it.ch].filter(Boolean).join(" · ") + " · "));
+  const u = watchUrl(it);
+  if (u){
+    const a = document.createElement("a");
+    a.href = u; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = "원본 보기";
+    meta.append(a);
+  }
+}
+
+function show(it){
+  if (!it){ say("이 채널은 아직 영상이 없어"); return; }
+  seen.add(it.id);
+  history = history.slice(0, pos + 1);
+  history.push(it.id);
+  pos = history.length - 1;
+  go(it);
+}
+function go(it){
+  renderInfo(it);
+  $("prev").disabled = pos <= 0;
+  store.set("vseen", [...seen].slice(-3000));
+  if (!begun) return;                // START 전에는 틀지 않음 (START 가 첫 영상을 틀어줌)
+  say("");
+  playItem(it);
+}
+function randomJump(){ show(pickRandom(history[pos])); }
+function next(){
+  if (pos < history.length - 1){ pos++; go(byId(history[pos])); return; }
+  randomJump();
+}
+function prev(){ if (pos > 0){ pos--; go(byId(history[pos])); } }
+
+function setCat(c){
+  cat = c; history = []; pos = -1;
+  store.set("vcat", c);
+  document.querySelectorAll(".chip").forEach(b => b.classList.toggle("on", b.dataset.c === c));
+  say("");
+  randomJump();
+}
+
+/* ── 터치/스와이프: 좌우(또는 위아래)로 밀면 넘김, 가볍게 탭하면 재생/일시정지 ── */
+function attachSwipe(el, onTap){
+  let sx = 0, sy = 0, st = 0;
+  el.addEventListener("pointerdown", e => { sx = e.clientX; sy = e.clientY; st = Date.now(); });
+  el.addEventListener("pointerup", e => {
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)){ dx < 0 ? next() : prev(); return; }
+    if (Math.abs(dy) > 60){ dy < 0 ? next() : prev(); return; }
+    if (Date.now() - st < 500 && onTap) onTap();
+  });
+}
+function togglePlay(){
+  if (!player || !playerReady) return;
+  try{
+    const st = player.getPlayerState();
+    if (st === 1) player.pauseVideo(); else player.playVideo();
+  }catch(e){}
+}
+
+function syncButtons(){
+  $("soundBtn").setAttribute("aria-pressed", String(!muted));
+  $("soundBtn").textContent = muted ? "MUTED" : "SOUND";
+  $("autoBtn").setAttribute("aria-pressed", String(auto));
+  $("autoBtn").textContent = auto ? "AUTO" : "LOOP";
+}
+
+async function init(){
+  $("rand").onclick = randomJump;
+  $("next").onclick = next;
+  $("prev").onclick = prev;
+  attachSwipe($("touch"), togglePlay);
+  attachSwipe($("zl"), prev);
+  attachSwipe($("zr"), next);
+  $("soundBtn").onclick = () => { muted = !muted; store.set("vmuted", muted); applyMute(); syncButtons(); };
+  $("autoBtn").onclick = () => { auto = !auto; store.set("vauto", auto); syncButtons(); };
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next();
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp") prev();
+    if (e.key === " "){ e.preventDefault(); togglePlay(); }
+  });
+  syncButtons();
+
+  const [videos, links] = await Promise.all([fetchJson("data/videos.json"), fetchJson("data/links.json")]);
+  ALL = normalize(videos, links);
+  if (!ALL.length){
+    $("start").hidden = true;
+    say("data/videos.json 이 비어 있어. 수집기를 한 번 돌리거나 data/links.json 에 링크를 넣어줘");
+    return;
+  }
+
+  // 채널(카테고리) 칩: 데이터에 있는 카테고리 순서대로
+  const cats = ["전체", ...new Set(ALL.map(x => x.c))];
+  const savedCat = store.get("vcat", "전체");
+  cat = cats.includes(savedCat) ? savedCat : "전체";
+  cats.forEach(c => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip" + (c === cat ? " on" : ""); b.dataset.c = c; b.textContent = c;
+    b.onclick = () => setCat(c);
+    $("chips").append(b);
+  });
+
+  await loadYouTubeApi();
+  createPlayer();
+
+  // 첫 영상은 미리 골라두고 START 를 누르면 바로 재생
+  randomJump();
+  $("startBtn").onclick = () => {
+    begun = true;
+    $("start").hidden = true;
+    const it = byId(history[pos]);
+    if (it){
+      // 이 클릭 안에서 재생을 시작해야 소리 있는 자동재생이 허용됨
+      if (isYt(it) && player && playerReady){ applyMute(); }
+      go(it);
+    }
+  };
+}
+</script>
+</body>
+</html>
